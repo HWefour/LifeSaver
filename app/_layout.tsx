@@ -1,3 +1,13 @@
+import {
+  BricolageGrotesque_600SemiBold,
+  BricolageGrotesque_700Bold,
+} from '@expo-google-fonts/bricolage-grotesque';
+import {
+  InstrumentSans_400Regular,
+  InstrumentSans_500Medium,
+  InstrumentSans_600SemiBold,
+  InstrumentSans_700Bold,
+} from '@expo-google-fonts/instrument-sans';
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -6,6 +16,7 @@ import 'react-native-reanimated';
 
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
+import { colors } from '@/constants/theme';
 import { useSession } from '@/lib/auth/useSession';
 import { TripGateContext } from '@/lib/trips/TripGateContext';
 import { useHasTrip } from '@/lib/trips/useHasTrip';
@@ -25,6 +36,12 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    BricolageGrotesque_600SemiBold,
+    BricolageGrotesque_700Bold,
+    InstrumentSans_400Regular,
+    InstrumentSans_500Medium,
+    InstrumentSans_600SemiBold,
+    InstrumentSans_700Bold,
   });
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
@@ -62,8 +79,13 @@ function RootLayoutNav() {
   if (isGateLoading) {
     return (
       <ThemeProvider value={theme}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Text>Chargement…</Text>
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+          lightColor={colors.bg}
+          darkColor={colors.bg}>
+          <Text lightColor={colors.text} darkColor={colors.text}>
+            Chargement…
+          </Text>
         </View>
       </ThemeProvider>
     );
@@ -72,7 +94,10 @@ function RootLayoutNav() {
   return (
     <ThemeProvider value={theme}>
       <TripGateContext.Provider value={{ refetchHasTrip }}>
-        <Stack>
+        {/* `contentStyle` sombre appliqué à toute la navigation : évite un flash
+            clair pendant les transitions entre écrans, y compris avant que les
+            écrans auth (non reskinnés pour l'instant) ne posent leur propre fond. */}
+        <Stack screenOptions={{ contentStyle: { backgroundColor: colors.bg } }}>
           <Stack.Protected guard={!session}>
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           </Stack.Protected>

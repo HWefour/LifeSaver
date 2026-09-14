@@ -5,6 +5,7 @@ export type VerificationStatus = 'unverified' | 'pending' | 'verified';
 
 export interface UserProfile {
   id: string;
+  displayName: string;
   nationality: string;
   languages: string[];
   verificationStatus: VerificationStatus;

@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase/client';
 export default function SignUpScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [nationality, setNationality] = useState('');
   const [languagesInput, setLanguagesInput] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
@@ -18,6 +19,8 @@ export default function SignUpScreen() {
   const canSubmit =
     email.trim().length > 0 &&
     password.length >= 6 &&
+    displayName.trim().length > 0 &&
+    displayName.trim().length <= 60 &&
     nationality.trim().length > 0 &&
     privacyAccepted &&
     !isSubmitting;
@@ -37,6 +40,7 @@ export default function SignUpScreen() {
       password,
       options: {
         data: {
+          display_name: displayName.trim(),
           nationality: nationality.trim(),
           languages,
           privacy_accepted: true,
@@ -97,6 +101,19 @@ export default function SignUpScreen() {
           autoComplete="password-new"
           secureTextEntry
           placeholder="6 caractères minimum"
+          placeholderTextColor="#999"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Nom affiché</Text>
+        <TextInput
+          style={styles.input}
+          value={displayName}
+          onChangeText={setDisplayName}
+          autoCapitalize="words"
+          maxLength={60}
+          placeholder="ex. Noa"
           placeholderTextColor="#999"
         />
       </View>

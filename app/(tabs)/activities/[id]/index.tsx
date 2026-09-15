@@ -9,6 +9,7 @@ import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useSession } from '@/lib/auth/useSession';
 import { formatActivityDateTimeFull } from '@/lib/activities/format';
 import { useActivityDetail } from '@/lib/activities/useActivityDetail';
+import { useParticipationRequests } from '@/lib/activities/useParticipationRequests';
 import { supabase } from '@/lib/supabase/client';
 
 // Détail d'une activité. L'accès au chat de groupe (écran dédié
@@ -27,6 +28,20 @@ export default function ActivityDetailScreen() {
     error,
     refetch,
   } = useActivityDetail(id, session?.user.id);
+
+  // Calculé avant les `return` anticipés ci-dessous : `useParticipationRequests`
+  // est un hook et doit être appelé inconditionnellement à chaque rendu, y
+  // compris pendant le chargement initial (où `activity` est encore `null`).
+  const isOwner = !!session && !!activity?.tripOwnerId && session.user.id === activity.tripOwnerId;
+
+  const {
+    requests: pendingRequests,
+    isLoading: isLoadingRequests,
+    error: requestsError,
+    actingIds: actingRequestIds,
+    confirm: confirmRequest,
+    decline: declineRequest,
+  } = useParticipationRequests(activity?.id, isOwner);
 
   const [isActing, setIsActing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -121,9 +136,19 @@ export default function ActivityDetailScreen() {
   const spotsLabel = spotsLeft <= 0 ? 'Complet' : spotsLeft === 1 ? '1 place restante' : `${spotsLeft} places restantes`;
   const spotsColor = spotsLeft <= 1 ? colors.ember : colors.jade;
   const typeColor = ACTIVITY_TYPE_COLORS[activity.type];
-  const isOwner = !!session && !!activity.tripOwnerId && session.user.id === activity.tripOwnerId;
 
   const canAccessChat = isOwner || ownParticipation?.status === 'confirmed';
+
+  async function handleRequestResponse(participationId: string, status: 'confirmed' | 'declined') {
+    if (status === 'confirmed') {
+      await confirmRequest(participationId);
+    } else {
+      await declineRequest(participationId);
+    }
+    // Le nombre de places prises (`spotsTaken`) ne bouge qu'à la confirmation,
+    // mais on refetch dans les deux cas pour rester simple.
+    refetch();
+  }
 
   const organizerLine = activity.organizer
     ? activity.organizer.languages.length > 0
@@ -213,6 +238,70 @@ export default function ActivityDetailScreen() {
             {organizerLine ? <Text style={styles.organizerMeta}>{organizerLine}</Text> : null}
           </RNView>
         </RNView>
+
+        {isOwner && (pendingRequests.length > 0 || isLoadingRequests) ? (
+          <RNView style={styles.requestsSection}>
+            <Text style={styles.requestsTitle}>
+              Demandes en attente{pendingRequests.length > 0 ? ` (${pendingRequests.length})` : ''}
+            </Text>
+
+            {requestsError ? <Text style={styles.errorText}>{requestsError}</Text> : null}
+
+            {isLoadingRequests && pendingRequests.length === 0 ? (
+              <ActivityIndicator color={colors.lantern} style={styles.requestsLoading} />
+            ) : (
+              pendingRequests.map((request) => {
+                const isRequestActing = actingRequestIds.has(request.id);
+                const requestLine =
+                  request.languages.length > 0
+                    ? `${request.nationality} · parle ${request.languages.join(', ')}`
+                    : request.nationality;
+
+                return (
+                  <RNView key={request.id} style={styles.requestRow}>
+                    <RNView style={styles.requestAvatar}>
+                      <Text style={styles.requestInitials}>
+                        {request.displayName.trim().slice(0, 2).toUpperCase()}
+                      </Text>
+                    </RNView>
+                    <RNView style={styles.requestInfo}>
+                      <Text style={styles.requestName}>{request.displayName}</Text>
+                      {requestLine ? <Text style={styles.requestMeta}>{requestLine}</Text> : null}
+                    </RNView>
+                    <RNView style={styles.requestActions}>
+                      <Pressable
+                        hitSlop={8}
+                        disabled={isRequestActing}
+                        style={[styles.requestButton, styles.requestButtonDecline]}
+                        onPress={() => handleRequestResponse(request.id, 'declined')}>
+                        <SymbolView
+                          name={{ ios: 'xmark', android: 'close', web: 'close' }}
+                          tintColor={colors.ember}
+                          size={16}
+                        />
+                      </Pressable>
+                      <Pressable
+                        hitSlop={8}
+                        disabled={isRequestActing}
+                        style={[styles.requestButton, styles.requestButtonConfirm]}
+                        onPress={() => handleRequestResponse(request.id, 'confirmed')}>
+                        {isRequestActing ? (
+                          <ActivityIndicator size="small" color={colors.bg} />
+                        ) : (
+                          <SymbolView
+                            name={{ ios: 'checkmark', android: 'check', web: 'check' }}
+                            tintColor={colors.bg}
+                            size={16}
+                          />
+                        )}
+                      </Pressable>
+                    </RNView>
+                  </RNView>
+                );
+              })
+            )}
+          </RNView>
+        ) : null}
 
         {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
       </ScrollView>
@@ -375,6 +464,75 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textMuted,
     marginTop: 2,
+  },
+  requestsSection: {
+    marginTop: spacing.xl,
+  },
+  requestsTitle: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 14,
+    color: colors.textMuted,
+    marginBottom: spacing.sm,
+  },
+  requestsLoading: {
+    marginTop: spacing.sm,
+  },
+  requestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  requestAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: radii.md,
+    backgroundColor: colors.lantern,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestInitials: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 13,
+    color: colors.bg,
+  },
+  requestInfo: {
+    flex: 1,
+  },
+  requestName: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 14,
+    color: colors.text,
+  },
+  requestMeta: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  requestButton: {
+    width: 34,
+    height: 34,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestButtonDecline: {
+    backgroundColor: `${colors.ember}1F`,
+    borderWidth: 1,
+    borderColor: `${colors.ember}4D`,
+  },
+  requestButtonConfirm: {
+    backgroundColor: colors.jade,
   },
   errorText: {
     fontFamily: fonts.body,

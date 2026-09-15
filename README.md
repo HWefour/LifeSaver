@@ -32,6 +32,21 @@ npm install
 npm run start     # puis choisir ios / android / web
 ```
 
+## Configuration requise — notifications push (EAS)
+
+`usePushRegistration` (`lib/notifications/usePushRegistration.ts`) a besoin d'un
+`projectId` EAS pour obtenir un token de push Expo en dehors d'Expo Go
+(`expo.expoConfig.extra.eas.projectId`). Cette étape ne peut pas être faite depuis
+un environnement d'agent sans accès à un compte Expo/EAS :
+
+```bash
+npx eas init        # associe le projet à un compte Expo, écrit extra.eas.projectId dans app.json
+```
+
+Tant que ce `projectId` n'est pas renseigné, `usePushRegistration` échoue
+silencieusement (best-effort, voir le commentaire dans le fichier) — le reste de
+l'app fonctionne normalement, seul l'enregistrement du push token est sans effet.
+
 ## Agents Claude Code
 
 Le dossier `.claude/agents/` contient des agents spécialisés pour ce projet :

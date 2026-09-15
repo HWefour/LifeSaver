@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import * as aesjs from 'aes-js';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 // TODO: importer `Database` depuis `@/types/database` (généré par backend-supabase via
 // `supabase gen types typescript`) une fois ce fichier créé, et le passer à createClient<Database>
@@ -32,6 +33,36 @@ if (!supabaseUrl || !supabasePublishableKey) {
 // by the official Supabase Expo/React Native quickstart: only a small AES key
 // lives in SecureStore (always tiny, never hits the limit), while the actual
 // encrypted session blob is stored in AsyncStorage (no practical size limit).
+// `expo-secure-store` ships an empty web module in this SDK version
+// (`ExpoSecureStore.web.ts` literally exports `{}`) : tout appel
+// `SecureStore.*Async` lève "is not a function" sur web, ce qui fait planter
+// l'inscription/connexion avant même d'atteindre Supabase. Le web n'a de
+// toute façon pas d'équivalent "secure enclave" — AsyncStorage (déjà utilisé
+// pour le blob chiffré ci-dessous) y est le seul stockage disponible et ne
+// dégrade donc rien par rapport à ce que SecureStore offrirait réellement
+// sur cette plateforme. Isolé sous un préfixe de clé dédié pour ne jamais
+// entrer en collision avec le blob chiffré stocké sous la même `key`.
+async function setSecureItem(key: string, value: string) {
+  if (Platform.OS === 'web') {
+    await AsyncStorage.setItem(`secure-fallback:${key}`, value);
+    return;
+  }
+  await SecureStore.setItemAsync(key, value);
+}
+async function getSecureItem(key: string) {
+  if (Platform.OS === 'web') {
+    return AsyncStorage.getItem(`secure-fallback:${key}`);
+  }
+  return SecureStore.getItemAsync(key);
+}
+async function deleteSecureItem(key: string) {
+  if (Platform.OS === 'web') {
+    await AsyncStorage.removeItem(`secure-fallback:${key}`);
+    return;
+  }
+  await SecureStore.deleteItemAsync(key);
+}
+
 class LargeSecureStore {
   private async _encrypt(key: string, value: string) {
     const encryptionKey = crypto.getRandomValues(new Uint8Array(256 / 8));
@@ -39,13 +70,13 @@ class LargeSecureStore {
     const cipher = new aesjs.ModeOfOperation.ctr(encryptionKey, new aesjs.Counter(1));
     const encryptedBytes = cipher.encrypt(aesjs.utils.utf8.toBytes(value));
 
-    await SecureStore.setItemAsync(key, aesjs.utils.hex.fromBytes(encryptionKey));
+    await setSecureItem(key, aesjs.utils.hex.fromBytes(encryptionKey));
 
     return aesjs.utils.hex.fromBytes(encryptedBytes);
   }
 
   private async _decrypt(key: string, value: string) {
-    const encryptionKeyHex = await SecureStore.getItemAsync(key);
+    const encryptionKeyHex = await getSecureItem(key);
     if (!encryptionKeyHex) {
       return null;
     }
@@ -70,7 +101,7 @@ class LargeSecureStore {
 
   async removeItem(key: string): Promise<void> {
     await AsyncStorage.removeItem(key);
-    await SecureStore.deleteItemAsync(key);
+    await deleteSecureItem(key);
   }
 
   async setItem(key: string, value: string): Promise<void> {

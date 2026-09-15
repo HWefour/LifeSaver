@@ -100,6 +100,11 @@ export default function PublicProfileScreen() {
   }
 
   if (error || !profile) {
+    // `error` signale un vrai échec réseau/serveur (message actionnable :
+    // "réessayez"). `!profile` sans `error` recouvre volontairement deux cas
+    // indistinguables côté UI — profil inexistant, ou masqué par un blocage
+    // réciproque (RLS `profiles_select_authenticated`) — pour ne jamais
+    // révéler à un utilisateur qu'il a été bloqué (voir `usePublicProfile`).
     return (
       <RNView style={styles.centered}>
         <Pressable style={styles.backFloating} hitSlop={12} onPress={() => router.back()}>
@@ -109,7 +114,9 @@ export default function PublicProfileScreen() {
             size={20}
           />
         </Pressable>
-        <Text style={styles.errorText}>Ce profil est introuvable.</Text>
+        <Text style={styles.errorText}>
+          {error ? 'Impossible de charger ce profil. Réessayez.' : 'Ce profil est introuvable.'}
+        </Text>
       </RNView>
     );
   }

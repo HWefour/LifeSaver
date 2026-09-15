@@ -1,6 +1,6 @@
 import { SymbolView } from 'expo-symbols';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View as RNView } from 'react-native';
 
 import { Text } from '@/components/Themed';
@@ -53,6 +53,7 @@ export default function ActivityDetailScreen() {
   const {
     participants: confirmedParticipants,
     isLoading: isLoadingParticipants,
+    refetch: refetchParticipants,
   } = useConfirmedParticipants(activity?.id, canAccessGroup);
 
   const isPastActivity = !!activity && new Date(activity.dateTime).getTime() < Date.now();
@@ -60,8 +61,21 @@ export default function ActivityDetailScreen() {
   const {
     ratedUserIds,
     submittingUserId: ratingSubmittingUserId,
+    error: ratingError,
     rate: rateParticipant,
   } = useActivityRatings(activity?.id, session?.user.id, canAccessGroup && isPastActivity);
+
+  // Un blocage posé depuis la fiche profil publique (`[id]/user/[userId].tsx`,
+  // ouverte via `router.push` depuis cet écran) doit se refléter ici au retour
+  // (participant bloqué qui disparaît de la liste) sans attendre un démontage
+  // complet de l'écran — même pattern que `app/(tabs)/trips/index.tsx`.
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+      refetchParticipants();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activity?.id])
+  );
 
   const [isActing, setIsActing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -277,6 +291,8 @@ export default function ActivityDetailScreen() {
             <Text style={styles.requestsTitle}>
               Participants confirmés{confirmedParticipants.length > 0 ? ` (${confirmedParticipants.length})` : ''}
             </Text>
+
+            {ratingError ? <Text style={styles.errorText}>{ratingError}</Text> : null}
 
             {isLoadingParticipants && confirmedParticipants.length === 0 ? (
               <ActivityIndicator color={colors.lantern} style={styles.requestsLoading} />

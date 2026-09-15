@@ -1,6 +1,6 @@
 import { SymbolView } from 'expo-symbols';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -27,9 +27,21 @@ export default function ActivityChatScreen() {
   const router = useRouter();
   const { session } = useSession();
 
-  const { messages, isLoading, error, realtimeStatus, sendMessage } = useMessages(
+  const { messages, isLoading, error, realtimeStatus, sendMessage, refetch } = useMessages(
     id,
     session?.user.id
+  );
+
+  // Un blocage posé depuis le profil public d'un auteur (ouvert en tapant sur
+  // son nom/avatar ci-dessous) doit faire disparaître ses messages au retour
+  // sur cet écran (RLS `messages_select_confirmed_or_owner`, voir la
+  // migration `extend_block_visibility_messages_profiles.sql`), sans
+  // attendre un démontage complet — même pattern que `app/(tabs)/trips/index.tsx`.
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id])
   );
 
   const [draft, setDraft] = useState('');

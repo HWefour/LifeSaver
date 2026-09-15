@@ -62,3 +62,44 @@ export interface Message {
   body: string;
   createdAt: string;
 }
+
+// Un blocage se traite comme réciproque côté visibilité (activities,
+// messages) même s'il n'est stocké que dans un sens (blockerId -> blockedId).
+export interface Block {
+  id: string;
+  blockerId: string;
+  blockedId: string;
+  createdAt: string;
+}
+
+export type ReportReason =
+  | 'inappropriate_behavior'
+  | 'fake_profile'
+  | 'harassment'
+  | 'spam'
+  | 'other';
+
+export type ReportStatus = 'pending' | 'reviewed' | 'dismissed';
+
+export interface Report {
+  id: string;
+  reporterId: string;
+  reportedUserId: string;
+  // Nullable : le signalement survit à la suppression de l'activité
+  // (ON DELETE SET NULL côté schéma).
+  activityId: string | null;
+  reason: ReportReason;
+  details: string | null;
+  status: ReportStatus;
+  createdAt: string;
+}
+
+export interface Rating {
+  id: string;
+  activityId: string;
+  raterId: string;
+  ratedId: string;
+  score: number;
+  comment: string | null;
+  createdAt: string;
+}

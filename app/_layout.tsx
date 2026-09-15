@@ -18,6 +18,8 @@ import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import { colors } from '@/constants/theme';
 import { useSession } from '@/lib/auth/useSession';
+import { useNotificationNavigation } from '@/lib/notifications/useNotificationNavigation';
+import { usePushRegistration } from '@/lib/notifications/usePushRegistration';
 import { TripGateContext } from '@/lib/trips/TripGateContext';
 import { useHasTrip } from '@/lib/trips/useHasTrip';
 
@@ -71,6 +73,9 @@ function RootLayoutNav() {
     refetch: refetchHasTrip,
   } = useHasTrip(session?.user.id);
   const theme = colorScheme === 'dark' ? DarkTheme : DefaultTheme;
+
+  usePushRegistration(session?.user.id);
+  useNotificationNavigation();
 
   // On n'a besoin d'attendre la vérification du trip que si une session
   // existe : pas de flash d'écran incorrect, pas d'attente inutile sinon.

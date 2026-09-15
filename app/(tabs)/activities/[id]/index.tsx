@@ -49,15 +49,18 @@ export default function ActivityDetailScreen() {
     // (activity_id, user_id)) : il faut la faire repasser à 'requested' via
     // update, seule transition self-service autorisée par
     // `participations_update_self` (voir la migration initiale).
-    const result =
-      ownParticipation && ownParticipation.status === 'declined'
-        ? await supabase
-            .from('participations')
-            .update({ status: 'requested' })
-            .eq('id', ownParticipation.id)
-        : await supabase
-            .from('participations')
-            .insert({ activity_id: activity.id, user_id: session.user.id });
+    const isReactivation = !!ownParticipation && ownParticipation.status === 'declined';
+
+    const result = isReactivation
+      ? await supabase
+          .from('participations')
+          .update({ status: 'requested' })
+          .eq('id', ownParticipation.id)
+      : await supabase
+          .from('participations')
+          .insert({ activity_id: activity.id, user_id: session.user.id })
+          .select('id')
+          .single();
 
     isActingRef.current = false;
     setIsActing(false);
@@ -73,6 +76,26 @@ export default function ActivityDetailScreen() {
           : "Impossible de rejoindre cette sortie pour l'instant. Réessayez."
       );
       return;
+    }
+
+    // Notification best-effort à l'organisateur, uniquement pour une
+    // nouvelle demande (pas une réactivation depuis 'declined').
+    if (!isReactivation) {
+      const participationId = (result.data as { id: string } | null)?.id;
+      if (participationId) {
+        // `invoke` ne throw que sur un échec réseau/invocation — une réponse
+        // HTTP non-2xx de la fonction revient dans `{ error }` sans lever.
+        try {
+          const { error } = await supabase.functions.invoke('send-push-notifications', {
+            body: { event: 'participation_requested', participation_id: participationId },
+          });
+          if (error) {
+            console.warn('[ActivityDetail] send-push-notifications returned an error', error);
+          }
+        } catch (error) {
+          console.warn('[ActivityDetail] send-push-notifications failed', error);
+        }
+      }
     }
 
     refetch();

@@ -259,6 +259,22 @@ export function useMessages(activityId: string | undefined, currentUserId: strin
         createdAt: data.created_at,
       });
 
+      // Best-effort : le message est déjà envoyé à ce stade, un échec de
+      // notification push ne doit jamais remonter comme une erreur ici.
+      // `invoke` ne throw que sur un échec réseau/invocation — une réponse
+      // HTTP non-2xx de la fonction (401/403/500) revient dans `{ error }`
+      // sans jamais lever, d'où le check explicite en plus du try/catch.
+      try {
+        const { error } = await supabase.functions.invoke('send-push-notifications', {
+          body: { event: 'new_message', message_id: data.id },
+        });
+        if (error) {
+          console.warn('[useMessages] send-push-notifications returned an error', error);
+        }
+      } catch (error) {
+        console.warn('[useMessages] send-push-notifications failed', error);
+      }
+
       return true;
     },
     [activityId, currentUserId, appendMessage]

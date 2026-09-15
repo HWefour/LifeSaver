@@ -56,6 +56,23 @@ export default function ProfileScreen() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleSignOut() {
+    // Supprime les tokens push de cet utilisateur avant de couper la session
+    // (push_tokens_delete_self le permet). Sans ça, un autre utilisateur qui
+    // se connecte ensuite sur ce même appareil ferait un upsert en
+    // `ignoreDuplicates: true` sur le même token Expo (attaché à l'install,
+    // pas au compte) : la ligne resterait attribuée à l'ancien utilisateur, et
+    // ses notifications (titres de sortie, noms d'autres participants)
+    // atterriraient sur l'appareil du nouvel utilisateur. Toutes les lignes de
+    // cet utilisateur sont supprimées (pas seulement celle de l'appareil
+    // courant) : plus simple, au prix de devoir se réenregistrer sur ses
+    // autres appareils après une déconnexion sur l'un d'eux.
+    if (userId) {
+      const { error } = await supabase.from('push_tokens').delete().eq('user_id', userId);
+      if (error) {
+        console.warn('[profile] failed to clear push tokens on sign-out', error.message);
+      }
+    }
+
     await supabase.auth.signOut();
     // Succès : `useSession` capte le changement et l'auth-gate dans
     // app/_layout.tsx redirige automatiquement vers (auth).

@@ -116,17 +116,35 @@ export default function ActivityChatScreen() {
           }
           renderItem={({ item }) => {
             const isOwn = item.userId === session?.user.id;
+            // Auteur anonymisé (compte supprimé, cf. useMessages) : pas de
+            // profil à afficher, l'auteur n'est donc pas pressable.
+            const canOpenAuthorProfile = !isOwn && !!item.userId;
+
+            function openAuthorProfile() {
+              if (!canOpenAuthorProfile || !item.userId) return;
+              router.push({
+                pathname: '/(tabs)/activities/[id]/user/[userId]',
+                params: { id, userId: item.userId },
+              });
+            }
+
             return (
               <RNView style={[styles.bubbleRow, isOwn && styles.bubbleRowOwn]}>
                 {!isOwn ? (
-                  <RNView style={styles.avatar}>
-                    <Text style={styles.avatarInitials}>
-                      {item.authorName.trim().slice(0, 2).toUpperCase()}
-                    </Text>
-                  </RNView>
+                  <Pressable disabled={!canOpenAuthorProfile} onPress={openAuthorProfile}>
+                    <RNView style={styles.avatar}>
+                      <Text style={styles.avatarInitials}>
+                        {item.authorName.trim().slice(0, 2).toUpperCase()}
+                      </Text>
+                    </RNView>
+                  </Pressable>
                 ) : null}
                 <RNView style={[styles.bubbleGroup, isOwn && styles.bubbleGroupOwn]}>
-                  {!isOwn ? <Text style={styles.authorName}>{item.authorName}</Text> : null}
+                  {!isOwn ? (
+                    <Pressable disabled={!canOpenAuthorProfile} onPress={openAuthorProfile}>
+                      <Text style={styles.authorName}>{item.authorName}</Text>
+                    </Pressable>
+                  ) : null}
                   <RNView style={[styles.bubble, isOwn && styles.bubbleOwn]}>
                     <Text style={[styles.bubbleText, isOwn && styles.bubbleTextOwn]}>
                       {item.body}

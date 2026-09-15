@@ -9,6 +9,8 @@ import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useSession } from '@/lib/auth/useSession';
 import { formatActivityDateTimeFull } from '@/lib/activities/format';
 import { useActivityDetail } from '@/lib/activities/useActivityDetail';
+import { useActivityRatings } from '@/lib/activities/useActivityRatings';
+import { useConfirmedParticipants } from '@/lib/activities/useConfirmedParticipants';
 import { useParticipationRequests } from '@/lib/activities/useParticipationRequests';
 import { supabase } from '@/lib/supabase/client';
 
@@ -42,6 +44,24 @@ export default function ActivityDetailScreen() {
     confirm: confirmRequest,
     decline: declineRequest,
   } = useParticipationRequests(activity?.id, isOwner);
+
+  // Accès chat/participants/notation : mêmes règles que canAccessChat
+  // (propriétaire ou participant confirmé), calculé ici pour être disponible
+  // avant les `return` anticipés (hooks appelés inconditionnellement).
+  const canAccessGroup = isOwner || ownParticipation?.status === 'confirmed';
+
+  const {
+    participants: confirmedParticipants,
+    isLoading: isLoadingParticipants,
+  } = useConfirmedParticipants(activity?.id, canAccessGroup);
+
+  const isPastActivity = !!activity && new Date(activity.dateTime).getTime() < Date.now();
+
+  const {
+    ratedUserIds,
+    submittingUserId: ratingSubmittingUserId,
+    rate: rateParticipant,
+  } = useActivityRatings(activity?.id, session?.user.id, canAccessGroup && isPastActivity);
 
   const [isActing, setIsActing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -137,7 +157,17 @@ export default function ActivityDetailScreen() {
   const spotsColor = spotsLeft <= 1 ? colors.ember : colors.jade;
   const typeColor = ACTIVITY_TYPE_COLORS[activity.type];
 
-  const canAccessChat = isOwner || ownParticipation?.status === 'confirmed';
+  const canAccessChat = canAccessGroup;
+
+  // `activity` est garanti non-null ici (return anticipé plus haut dans la
+  // même portée de fonction), mais TypeScript ne propage pas ce narrowing
+  // dans une closure imbriquée — d'où l'assertion non-null.
+  function goToProfile(userId: string) {
+    router.push({
+      pathname: '/(tabs)/activities/[id]/user/[userId]',
+      params: { id: activity!.id, userId },
+    });
+  }
 
   async function handleRequestResponse(participationId: string, status: 'confirmed' | 'declined') {
     if (status === 'confirmed') {
@@ -227,7 +257,10 @@ export default function ActivityDetailScreen() {
           <Text style={styles.description}>{activity.description}</Text>
         ) : null}
 
-        <RNView style={styles.organizerCard}>
+        <Pressable
+          style={styles.organizerCard}
+          disabled={!activity.tripOwnerId || isOwner}
+          onPress={() => goToProfile(activity.tripOwnerId!)}>
           <RNView style={styles.organizerAvatar}>
             <Text style={styles.organizerInitials}>
               {(activity.organizer?.displayName ?? '??').trim().slice(0, 2).toUpperCase()}
@@ -237,7 +270,72 @@ export default function ActivityDetailScreen() {
             <Text style={styles.organizerName}>{activity.organizer?.displayName ?? 'Voyageur'}</Text>
             {organizerLine ? <Text style={styles.organizerMeta}>{organizerLine}</Text> : null}
           </RNView>
-        </RNView>
+        </Pressable>
+
+        {canAccessGroup && (confirmedParticipants.length > 0 || isLoadingParticipants) ? (
+          <RNView style={styles.requestsSection}>
+            <Text style={styles.requestsTitle}>
+              Participants confirmés{confirmedParticipants.length > 0 ? ` (${confirmedParticipants.length})` : ''}
+            </Text>
+
+            {isLoadingParticipants && confirmedParticipants.length === 0 ? (
+              <ActivityIndicator color={colors.lantern} style={styles.requestsLoading} />
+            ) : (
+              confirmedParticipants.map((participant) => {
+                const isSelf = participant.userId === session?.user.id;
+                const participantLine =
+                  participant.languages.length > 0
+                    ? `${participant.nationality} · parle ${participant.languages.join(', ')}`
+                    : participant.nationality;
+                const alreadyRated = ratedUserIds.has(participant.userId);
+                const isRatingSubmitting = ratingSubmittingUserId === participant.userId;
+
+                return (
+                  <RNView key={participant.userId} style={styles.requestRow}>
+                    <Pressable
+                      style={styles.participantTouchable}
+                      onPress={() => goToProfile(participant.userId)}>
+                      <RNView style={styles.requestAvatar}>
+                        <Text style={styles.requestInitials}>
+                          {participant.displayName.trim().slice(0, 2).toUpperCase()}
+                        </Text>
+                      </RNView>
+                      <RNView style={styles.requestInfo}>
+                        <Text style={styles.requestName}>{participant.displayName}</Text>
+                        {participantLine ? (
+                          <Text style={styles.requestMeta}>{participantLine}</Text>
+                        ) : null}
+                      </RNView>
+                    </Pressable>
+
+                    {isPastActivity && !isSelf ? (
+                      alreadyRated ? (
+                        <Text style={styles.ratedLabel}>Noté ✓</Text>
+                      ) : isRatingSubmitting ? (
+                        <ActivityIndicator size="small" color={colors.lantern} />
+                      ) : (
+                        <RNView style={styles.starsRow}>
+                          {[1, 2, 3, 4, 5].map((score) => (
+                            <Pressable
+                              key={score}
+                              hitSlop={4}
+                              onPress={() => rateParticipant(participant.userId, score)}>
+                              <SymbolView
+                                name={{ ios: 'star', android: 'star_border', web: 'star_border' }}
+                                tintColor={colors.lantern}
+                                size={16}
+                              />
+                            </Pressable>
+                          ))}
+                        </RNView>
+                      )
+                    ) : null}
+                  </RNView>
+                );
+              })
+            )}
+          </RNView>
+        ) : null}
 
         {isOwner && (pendingRequests.length > 0 || isLoadingRequests) ? (
           <RNView style={styles.requestsSection}>
@@ -518,6 +616,21 @@ const styles = StyleSheet.create({
   requestActions: {
     flexDirection: 'row',
     gap: spacing.xs,
+  },
+  participantTouchable: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  starsRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  ratedLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 12,
+    color: colors.jade,
   },
   requestButton: {
     width: 34,

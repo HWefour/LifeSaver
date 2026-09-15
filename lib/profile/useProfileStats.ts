@@ -7,6 +7,15 @@ export type ProfileStats = {
   activitiesOrganized: number;
   /** Nombre de participations confirmées (statut 'confirmed') de l'utilisateur. */
   confirmedParticipations: number;
+  /** `null` tant qu'aucune note n'a été reçue (pas de note "0" trompeuse). */
+  averageScore: number | null;
+  ratingsCount: number;
+};
+
+type AverageRatingRow = {
+  profile_id: string;
+  average_score: number;
+  ratings_count: number;
 };
 
 type State = {
@@ -61,7 +70,24 @@ async function fetchProfileStats(userId: string): Promise<ProfileStats> {
     throw participationsError;
   }
 
-  return { activitiesOrganized, confirmedParticipations: confirmedCount ?? 0 };
+  // Même RPC que le profil public (`usePublicProfile`), appelée ici pour un
+  // seul id : on évite de dupliquer la logique d'agrégation côté client.
+  const { data: averages, error: averagesError } = await supabase.rpc('profile_average_ratings', {
+    p_profile_ids: [userId],
+  });
+
+  if (averagesError) {
+    throw averagesError;
+  }
+
+  const average = ((averages ?? []) as AverageRatingRow[]).find((row) => row.profile_id === userId);
+
+  return {
+    activitiesOrganized,
+    confirmedParticipations: confirmedCount ?? 0,
+    averageScore: average?.average_score ?? null,
+    ratingsCount: average?.ratings_count ?? 0,
+  };
 }
 
 /**

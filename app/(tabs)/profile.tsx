@@ -168,6 +168,14 @@ export default function ProfileScreen() {
           <Text style={styles.statValue}>{stats ? stats.confirmedParticipations : '—'}</Text>
           <Text style={styles.statLabel}>Participations confirmées</Text>
         </RNView>
+        <RNView style={styles.statCard}>
+          <Text style={styles.statValue}>
+            {stats?.averageScore != null ? stats.averageScore.toFixed(1) : '—'}
+          </Text>
+          <Text style={styles.statLabel}>
+            {stats && stats.ratingsCount > 0 ? `Note (${stats.ratingsCount} avis)` : 'Pas encore noté'}
+          </Text>
+        </RNView>
       </RNView>
 
       <RNView style={styles.section}>

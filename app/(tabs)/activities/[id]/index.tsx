@@ -11,8 +11,10 @@ import { formatActivityDateTimeFull } from '@/lib/activities/format';
 import { useActivityDetail } from '@/lib/activities/useActivityDetail';
 import { supabase } from '@/lib/supabase/client';
 
-// Détail d'une activité. Le chat de groupe (Supabase Realtime) est hors
-// scope de cet écran — voir la maquette "6. CHAT" pour un futur écran dédié.
+// Détail d'une activité. L'accès au chat de groupe (écran dédié
+// `[id]/chat.tsx`, Supabase Realtime) n'est proposé que si l'utilisateur a
+// le droit d'y écrire/lire selon la RLS de `messages` (participant confirmé
+// ou propriétaire) — voir la maquette "6. CHAT" pour le détail visuel.
 export default function ActivityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -98,6 +100,8 @@ export default function ActivityDetailScreen() {
   const typeColor = ACTIVITY_TYPE_COLORS[activity.type];
   const isOwner = !!session && !!activity.tripOwnerId && session.user.id === activity.tripOwnerId;
 
+  const canAccessChat = isOwner || ownParticipation?.status === 'confirmed';
+
   const organizerLine = activity.organizer
     ? activity.organizer.languages.length > 0
       ? `${activity.organizer.nationality} · parle ${activity.organizer.languages.join(', ')}`
@@ -114,6 +118,25 @@ export default function ActivityDetailScreen() {
             size={20}
           />
         </Pressable>
+
+        {canAccessChat ? (
+          <Pressable
+            style={styles.chatButton}
+            hitSlop={8}
+            onPress={() =>
+              router.push({
+                pathname: '/(tabs)/activities/[id]/chat',
+                params: { id: activity.id, title: activity.title },
+              })
+            }>
+            <SymbolView
+              name={{ ios: 'bubble.left.and.bubble.right', android: 'forum', web: 'forum' }}
+              tintColor={colors.lantern}
+              size={17}
+            />
+            <Text style={styles.chatButtonLabel}>Discussion</Text>
+          </Pressable>
+        ) : null}
       </RNView>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -214,9 +237,28 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingTop: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.sm,
+  },
+  chatButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: `${colors.lantern}1F`,
+    borderWidth: 1,
+    borderColor: `${colors.lantern}4D`,
+    borderRadius: radii.full,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  chatButtonLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 13,
+    color: colors.lantern,
   },
   content: {
     paddingHorizontal: spacing.lg,

@@ -38,7 +38,7 @@ export default function DiscoverScreen() {
 
   function handleJoinPress(activityId: string) {
     // La création de la participation se fait sur l'écran de détail (bouton
-    // "Rejoindre" de app/(tabs)/activities/[id].tsx) : ce bouton depuis la
+    // "Rejoindre" de app/(tabs)/activities/[id]/index.tsx) : ce bouton depuis la
     // carte se contente d'y naviguer, comme un tap sur la carte elle-même.
     router.push({ pathname: '/(tabs)/activities/[id]', params: { id: activityId } });
   }

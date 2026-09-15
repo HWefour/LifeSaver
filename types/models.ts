@@ -55,7 +55,10 @@ export interface Participation {
 export interface Message {
   id: string;
   activityId: string;
-  userId: string;
+  // Nullable : anonymisation RGPD, `messages.user_id` passe à NULL
+  // (ON DELETE SET NULL) quand l'auteur supprime son compte, sans supprimer
+  // le message lui-même.
+  userId: string | null;
   body: string;
   createdAt: string;
 }

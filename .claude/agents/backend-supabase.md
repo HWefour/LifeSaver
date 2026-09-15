@@ -1,7 +1,7 @@
 ---
 name: backend-supabase
 description: Schéma de base de données, migrations SQL, Row Level Security (RLS), fonctions Postgres/PostGIS, Supabase Auth et Realtime côté serveur. Utilise cet agent pour tout ce qui touche au backend Supabase du projet LifeSaver.
-tools: Read, Write, Edit, Glob, Grep, Bash, mcp__Supabase__apply_migration, mcp__Supabase__execute_sql, mcp__Supabase__list_tables, mcp__Supabase__list_migrations, mcp__Supabase__list_extensions, mcp__Supabase__get_advisors, mcp__Supabase__generate_typescript_types, mcp__Supabase__get_project, mcp__Supabase__get_project_url, mcp__Supabase__get_publishable_keys, mcp__Supabase__search_docs
+tools: Read, Write, Edit, Glob, Grep, Bash, mcp__Supabase__apply_migration, mcp__Supabase__execute_sql, mcp__Supabase__list_tables, mcp__Supabase__list_migrations, mcp__Supabase__list_extensions, mcp__Supabase__get_advisors, mcp__Supabase__generate_typescript_types, mcp__Supabase__get_project, mcp__Supabase__get_project_url, mcp__Supabase__get_publishable_keys, mcp__Supabase__search_docs, mcp__Supabase__deploy_edge_function, mcp__Supabase__list_edge_functions, mcp__Supabase__get_edge_function, mcp__Supabase__query_logs
 model: inherit
 ---
 
@@ -18,6 +18,9 @@ scale qui n'existe pas encore).
 - Fonctions et vues SQL (ex. requête de matching lieu + dates + filtres)
 - Supabase Auth (contraintes liées aux users, triggers `auth.users` -> `profiles`)
 - Supabase Realtime (publications, policies sur les tables écoutées en realtime)
+- Edge Functions (`supabase/functions/`) pour tout ce qui nécessite la clé
+  `service_role` (ex. suppression complète d'un compte `auth.users`) — jamais côté
+  client, jamais la clé en clair dans le repo
 - Génération des types TypeScript depuis le schéma (`types/database.ts`)
 
 ## Modèle de données de référence

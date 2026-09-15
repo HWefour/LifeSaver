@@ -68,12 +68,15 @@ export function TripForm({ submitLabel = 'Continuer', onSuccess }: TripFormProps
       setIsSubmitting(false);
 
       // Violation de clé étrangère Postgres (`trips.user_id` -> `profiles.id`) :
-      // arrive si le compte a été supprimé (delete_own_account()) puis
-      // l'utilisateur s'est reconnecté avec les mêmes identifiants (auth.users
-      // existe toujours, limite connue du RPC) — son user_id ne référence plus
-      // aucun profil, l'insert ne peut jamais aboutir. On casse la boucle en
-      // déconnectant plutôt que de laisser l'utilisateur réessayer indéfiniment
-      // sur un formulaire qui ne peut pas réussir.
+      // filet de sécurité pour l'état "compte zombie" — la edge function
+      // `delete-account` peut échouer entre son étape 2 (delete_own_account(),
+      // qui supprime déjà le profil) et son étape 3 (suppression de la ligne
+      // auth.users). Si l'utilisateur se reconnecte dans cette fenêtre, son
+      // user_id ne référence plus aucun profil et l'insert ne peut pas aboutir.
+      // On casse la boucle en déconnectant plutôt que de laisser l'utilisateur
+      // réessayer indéfiniment sur un formulaire qui ne peut pas réussir —
+      // un nouvel appel à la suppression de compte, lui, peut réparer cet état
+      // (delete_own_account() est idempotente).
       if (error?.code === '23503') {
         setErrorMessage("Ce compte n'existe plus. Contactez le support.");
         await supabase.auth.signOut();

@@ -1,3 +1,4 @@
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, View as RNView, StyleSheet } from 'react-native';
@@ -12,6 +13,31 @@ import { useOwnProfile } from '@/lib/profile/useOwnProfile';
 import { useProfileStats } from '@/lib/profile/useProfileStats';
 import { supabase } from '@/lib/supabase/client';
 import { useActiveTrip } from '@/lib/trips/useActiveTrip';
+
+const DEFAULT_DELETE_ACCOUNT_ERROR =
+  'Impossible de supprimer votre compte pour le moment. Réessayez plus tard.';
+
+// `supabase.functions.invoke` renvoie `{ data: null, error }` sur toute
+// réponse non-2xx. Une `FunctionsHttpError` porte la `Response` brute dans
+// `error.context` : on essaie d'en extraire le `{ error: "..." }` renvoyé par
+// la edge function pour afficher son message générique plutôt qu'un texte
+// généré côté client. `FunctionsRelayError`/`FunctionsFetchError` (échec
+// réseau avant même d'atteindre la fonction) n'ont pas ce corps structuré, on
+// retombe alors sur le message par défaut.
+async function extractDeleteAccountErrorMessage(error: unknown): Promise<string> {
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const body = await error.context.json();
+      if (typeof body?.error === 'string' && body.error.length > 0) {
+        return body.error;
+      }
+    } catch {
+      // Corps non-JSON ou illisible : on retombe sur le message par défaut.
+    }
+  }
+
+  return DEFAULT_DELETE_ACCOUNT_ERROR;
+}
 
 // Écran Profil : identité (avatar initiales, nom, nationalité), statut de
 // vérification, langues parlées, statistiques simples, voyage actif, et les
@@ -38,7 +64,7 @@ export default function ProfileScreen() {
   function handleDeleteAccountPress() {
     Alert.alert(
       'Supprimer votre compte ?',
-      "Cette action est définitive et irréversible : votre profil sera supprimé. Vos messages resteront visibles pour les autres participants mais anonymisés (votre nom disparaît). Vos voyages et sorties ne seront pas supprimés immédiatement : ils seront détachés de votre compte, puis nettoyés automatiquement plus tard.",
+      "Cette action est définitive et irréversible : votre compte sera entièrement supprimé et vous ne pourrez plus vous reconnecter avec cet email. Votre profil sera supprimé. Vos messages resteront visibles pour les autres participants mais anonymisés (votre nom disparaît). Vos voyages et sorties ne seront pas supprimés immédiatement : ils seront détachés de votre compte, puis nettoyés automatiquement plus tard.",
       [
         { text: 'Annuler', style: 'cancel' },
         { text: 'Supprimer mon compte', style: 'destructive', onPress: confirmDeleteAccount },
@@ -50,17 +76,18 @@ export default function ProfileScreen() {
     setDeleteError(null);
     setIsDeleting(true);
 
-    const { error } = await supabase.rpc('delete_own_account');
+    const { error } = await supabase.functions.invoke('delete-account');
 
     if (error) {
       setIsDeleting(false);
-      setDeleteError('Impossible de supprimer votre compte pour le moment. Réessayez plus tard.');
+      setDeleteError(await extractDeleteAccountErrorMessage(error));
       return;
     }
 
-    // Suppression réussie côté données : on déconnecte pour que l'auth-gate
-    // redirige vers (auth). Le RPC ne supprime pas la ligne auth.users (limite
-    // connue, documentée côté SQL) mais la session n'a plus de profil derrière.
+    // Suppression réussie : la ligne auth.users est désormais réellement
+    // supprimée côté serveur. Le token en mémoire correspond à un compte qui
+    // n'existe plus ; on déconnecte uniquement pour nettoyer la session
+    // locale, pas pour "espérer" que ça règle quoi que ce soit côté données.
     const { error: signOutError } = await supabase.auth.signOut();
 
     if (signOutError) {

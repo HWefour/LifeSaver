@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { parseGeographyPointHex } from '@/lib/geo/wkb';
 import { supabase } from '@/lib/supabase/client';
 
 export type ActiveTrip = {
@@ -7,6 +8,12 @@ export type ActiveTrip = {
   destination: string;
   startDate: string;
   endDate: string;
+  // Point PostGIS du trip (voir `parseGeographyPointHex`) : exposé pour que
+  // la création d'activité (`app/(tabs)/activities/index.tsx`) puisse
+  // réutiliser le même point plutôt que d'introduire un nouveau placeholder.
+  // `null` si le décodage échoue (ne devrait pas arriver en pratique, la
+  // colonne est NOT NULL et toujours écrite via `toPointWkt`/le même format).
+  location: { lat: number; lng: number } | null;
 };
 
 type State = {
@@ -24,7 +31,7 @@ async function fetchActiveTrip(userId: string): Promise<ActiveTrip | null> {
   // ouverte à tout utilisateur authentifié).
   const { data, error } = await supabase
     .from('trips')
-    .select('id, destination, start_date, end_date')
+    .select('id, destination, start_date, end_date, location')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -43,6 +50,7 @@ async function fetchActiveTrip(userId: string): Promise<ActiveTrip | null> {
     destination: data.destination,
     startDate: data.start_date,
     endDate: data.end_date,
+    location: parseGeographyPointHex(data.location as unknown as string),
   };
 }
 

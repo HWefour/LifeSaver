@@ -33,6 +33,7 @@ export interface Activity {
   id: string;
   tripId: string;
   title: string;
+  description: string | null;
   type: ActivityType;
   dateTime: string;
   location: { lat: number; lng: number; label: string };

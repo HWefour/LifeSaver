@@ -37,9 +37,10 @@ export default function DiscoverScreen() {
   }
 
   function handleJoinPress(activityId: string) {
-    // TODO: création de participation (`insert` dans `participations`) —
-    // hors scope de cette tâche, qui ne couvre que l'affichage du feed.
-    void activityId;
+    // La création de la participation se fait sur l'écran de détail (bouton
+    // "Rejoindre" de app/(tabs)/activities/[id].tsx) : ce bouton depuis la
+    // carte se contente d'y naviguer, comme un tap sur la carte elle-même.
+    router.push({ pathname: '/(tabs)/activities/[id]', params: { id: activityId } });
   }
 
   const isLoading = isTripLoading || isFeedLoading;

@@ -31,6 +31,21 @@ export function formatActivityTimeBadge(dateTimeIso: string, now: Date = new Dat
   return `${dayPart} · ${timePart}`;
 }
 
+/**
+ * Date/heure complète façon maquette "Détail sortie" : "Dimanche 14 sept.,
+ * 18h30". Pas de gestion de fuseau horaire dédiée (MVP mono-ville).
+ */
+export function formatActivityDateTimeFull(dateTimeIso: string): string {
+  const dateTime = new Date(dateTimeIso);
+  const weekday = new Intl.DateTimeFormat('fr-FR', { weekday: 'long' }).format(dateTime);
+  const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+  const month = new Intl.DateTimeFormat('fr-FR', { month: 'short' }).format(dateTime).replace('.', '');
+  const hours = dateTime.getHours();
+  const minutes = dateTime.getMinutes().toString().padStart(2, '0');
+
+  return `${capitalizedWeekday} ${dateTime.getDate()} ${month}., ${hours}h${minutes}`;
+}
+
 /** Fenêtre de dates façon maquette : "14–26 sept." */
 export function formatDateRangeChip(startDate: string, endDate: string): string {
   const start = new Date(`${startDate}T00:00:00`);

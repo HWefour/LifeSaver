@@ -1,6 +1,6 @@
 import Constants, { AppOwnership } from 'expo-constants';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
+import type * as NotificationsModule from 'expo-notifications';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
@@ -20,13 +20,18 @@ import { supabase } from '@/lib/supabase/client';
  * d'Expo Go. Si absent, l'appel lève — on le catch et on log un simple
  * warning plutôt que de considérer ça comme un bug de ce hook.
  *
- * Depuis Expo SDK 53, la fonctionnalité remote push d'`expo-notifications`
- * est de toute façon retirée d'Expo Go (development build requis) : le
- * `try/catch` ci-dessous suffirait à absorber l'exception sans planter (elle
- * survient dans un callback async, pas pendant le rendu — contrairement à
- * `useNotificationNavigation`), mais autant sortir tôt pour éviter de
- * déclencher inutilement une demande de permission notifications à
- * l'utilisateur alors qu'aucun token ne pourra de toute façon être obtenu.
+ * Depuis Expo SDK 53, `expo-notifications` lève une exception *à l'import
+ * même* (pas seulement à l'appel d'une fonction précise) sur Android dans
+ * Expo Go : son module racine charge un fichier d'effet
+ * (`DevicePushTokenAutoRegistration.fx.js`) qui s'auto-exécute et throw dès
+ * que le module est chargé. Un `import * as Notifications from
+ * 'expo-notifications'` classique en haut de fichier est donc évalué (et
+ * plante) dès que ce fichier est require, indépendamment de tout garde-fou
+ * placé *à l'intérieur* du hook — c'est bien ce garde-fou-là qui était
+ * insuffisant dans une version précédente. Seul un `import()` dynamique,
+ * placé après avoir vérifié qu'on n'est pas dans Expo Go, reporte le
+ * chargement du module (et donc l'exécution de son effet) à ce point précis
+ * au lieu de l'exécuter immédiatement à l'évaluation du fichier.
  */
 export function usePushRegistration(userId: string | undefined) {
   useEffect(() => {
@@ -39,6 +44,8 @@ export function usePushRegistration(userId: string | undefined) {
       if (!Device.isDevice) return;
 
       try {
+        const Notifications: typeof NotificationsModule = await import('expo-notifications');
+
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
         let finalStatus = existingStatus;
 

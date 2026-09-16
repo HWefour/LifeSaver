@@ -1,4 +1,4 @@
-import Constants from 'expo-constants';
+import Constants, { AppOwnership } from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
@@ -19,10 +19,19 @@ import { supabase } from '@/lib/supabase/client';
  * (`app.json` -> `expo.extra.eas.projectId`) pour fonctionner en dehors
  * d'Expo Go. Si absent, l'appel lève — on le catch et on log un simple
  * warning plutôt que de considérer ça comme un bug de ce hook.
+ *
+ * Depuis Expo SDK 53, la fonctionnalité remote push d'`expo-notifications`
+ * est de toute façon retirée d'Expo Go (development build requis) : le
+ * `try/catch` ci-dessous suffirait à absorber l'exception sans planter (elle
+ * survient dans un callback async, pas pendant le rendu — contrairement à
+ * `useNotificationNavigation`), mais autant sortir tôt pour éviter de
+ * déclencher inutilement une demande de permission notifications à
+ * l'utilisateur alors qu'aucun token ne pourra de toute façon être obtenu.
  */
 export function usePushRegistration(userId: string | undefined) {
   useEffect(() => {
     if (!userId) return;
+    if (Constants.appOwnership === AppOwnership.Expo) return;
 
     let isCancelled = false;
 
